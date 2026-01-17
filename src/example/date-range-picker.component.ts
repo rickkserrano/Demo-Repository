@@ -366,19 +366,24 @@ function sameDate(a: Date | null, b: Date | null): boolean {
 
     /* ✅ Responsive improvements (mobile) */
     @media (max-width: 720px) {
-      /* Inputs: mantener 2 campos en una fila */
+      /* =========================
+         Inputs (mantener 2 en fila)
+         ========================= */
       .inputs {
         flex-direction: row;
         gap: 8px;
       }
       .field { flex: 1; }
+    
       input {
-        height: 34px;
+        height: 32px;
         padding: 0 8px;
-        font-size: 13px;
+        font-size: 12px;
       }
     
-      /* Panel: fullscreen modal */
+      /* =========================
+         Panel fullscreen (sin cambiar layout)
+         ========================= */
       .panel {
         position: fixed;
         inset: 0;
@@ -387,82 +392,151 @@ function sameDate(a: Date | null, b: Date | null): boolean {
         max-height: 100vh;
         border-radius: 0;
         overflow: hidden;
-        /* mantenemos 2 columnas: izquierda (rangos) + derecha (calendario) */
-        grid-template-columns: 170px 1fr;
+    
+        /* left (ranges) + right (calendars) */
+        grid-template-columns: 150px 1fr;
       }
     
-      /* Left (Select Range): vertical, compacta, sin scroll horizontal */
+      /* =========================
+         Left: Select Range vertical (sin scroll horizontal)
+         ========================= */
       .left {
-        padding: 10px;
+        padding: 8px;
         background: #fafafa;
         border-right: 1px solid #f3f4f6;
         border-bottom: none;
-        overflow: auto;
+    
+        overflow-y: auto;
+        overflow-x: hidden;
       }
-      .sectionTitle { margin-bottom: 8px; }
+    
+      .sectionTitle {
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
     
       .quickList {
         display: flex;
-        flex-direction: column; /* ✅ vertical */
-        gap: 8px;
-        overflow: visible;      /* ✅ sin scroll horizontal */
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+        overflow: visible;
         padding-bottom: 0;
       }
     
       .quickBtn {
+        box-sizing: border-box;
         width: 100%;
+        max-width: 100%;
         min-width: 0;
-        padding: 9px 10px;
+    
+        padding: 7px 8px;
         border-radius: 10px;
+        font-size: 12px;
+    
         white-space: normal;
-        font-size: 13px;
+        word-break: break-word;
       }
     
-      /* Right side: que el calendario sea usable */
+      /* =========================
+         Right: Calendarios (2 en vertical), compactos
+         ========================= */
       .right {
-        padding: 10px;
+        padding: 8px;
         overflow: hidden;
+    
         display: grid;
-        grid-template-rows: 1fr auto auto; /* calendars / footer / messages */
+        grid-template-rows: 1fr auto auto; /* calendars / footer / hint+errors */
         min-height: 0;
       }
     
-      /*
-        Calendarios: en móvil mostramos 1 por "pantalla" con swipe horizontal,
-        para que no quede todo apretado.
-        (Desktop sigue igual, porque esto solo aplica en el media query)
-      */
+      /* Mantener vertical; que esta zona sea scrolleable si hace falta */
       .calStack {
-        flex-direction: row;
+        display: flex;
+        flex-direction: column;
         gap: 10px;
-        overflow-x: auto;
-        scroll-snap-type: x mandatory;
+    
+        overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
+    
         padding-bottom: 6px;
         min-height: 0;
       }
     
       .cal {
-        min-width: calc(100vw - 170px - 20px); /* right column width aprox */
-        scroll-snap-align: start;
         padding: 8px;
+        border-radius: 12px;
       }
     
-      /* Compactar un poco el grid */
-      .cell { height: 28px; border-radius: 9px; }
-      .dowCell { font-size: 10px; }
-      .calMonthLabel { font-size: 11px; }
+      .calHeader {
+        gap: 6px;
+      }
     
-      /* Footer sticky para que siempre puedas cerrar/clear */
+      .headerCenter {
+        gap: 6px;
+        flex-wrap: nowrap;
+      }
+    
+      .select {
+        height: 28px;
+        font-size: 12px;
+        padding: 0 6px;
+        border-radius: 9px;
+      }
+    
+      .iconBtn {
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+      }
+    
+      .calMonthLabel {
+        margin-top: 6px;
+        font-size: 11px;
+      }
+    
+      .dow,
+      .grid {
+        gap: 3px;
+        margin-top: 6px;
+      }
+    
+      .dowCell {
+        font-size: 10px;
+      }
+    
+      .cell {
+        height: 24px;          /* clave para que quepa */
+        border-radius: 8px;
+        font-size: 12px;
+        padding: 0;
+      }
+    
+      /* =========================
+         Footer sticky + más compacto
+         ========================= */
       .footer {
         position: sticky;
         bottom: 0;
         background: #fff;
+    
         padding-top: 8px;
         margin-top: 8px;
+        gap: 8px;
       }
-      .btn { height: 36px; }
-      .hint { margin-top: 8px; }
+    
+      .btn {
+        height: 32px;
+        padding: 0 10px;
+        border-radius: 10px;
+        font-size: 12px;
+      }
+    
+      .hint {
+        margin-top: 6px;
+        font-size: 11px;
+      }
     }
     
   `],
