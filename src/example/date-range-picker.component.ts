@@ -24,13 +24,20 @@ import {
 } from './date-utils';
 
 export type DateRange = { start: Date | null; end: Date | null };
-type QuickKey = 'last7' | 'last30' | 'last90' | 'thisYear';
 
-const QUICK: { key: QuickKey; label: string }[] = [
+type QuickKey = 'last7' | 'last30' | 'last90' | 'thisYear' | 'lastYear';
+type ActivePreset = QuickKey | 'custom' | null;
+
+const QUICK_BASE: { key: QuickKey; label: string }[] = [
   { key: 'last7', label: 'Last 7 days' },
   { key: 'last30', label: 'Last 30 days' },
   { key: 'last90', label: 'Last 90 days' },
   { key: 'thisYear', label: 'This year' },
+];
+
+const QUICK_WITH_LAST_YEAR: { key: QuickKey; label: string }[] = [
+  ...QUICK_BASE,
+  { key: 'lastYear', label: 'Last year' },
 ];
 
 function calcQuickRange(key: QuickKey, today: Date): DateRange {
@@ -40,9 +47,20 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
     return { start: new Date(t.getFullYear(), 0, 1), end: t };
   }
 
+  if (key === 'lastYear') {
+    const y = t.getFullYear() - 1;
+    return { start: new Date(y, 0, 1), end: new Date(y, 11, 31) };
+  }
+
   const days = key === 'last7' ? 7 : key === 'last30' ? 30 : 90;
   const start = addDays(t, -(days - 1)); // inclusive
   return { start, end: t };
+}
+
+function sameDate(a: Date | null, b: Date | null): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return normalizeDate(a).getTime() === normalizeDate(b).getTime();
 }
 
 @Component({
@@ -55,36 +73,56 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
         <div class="field">
           <div class="fieldLabel">Start date</div>
           <input
+            [class.invalid]="showStartInvalid()"
             [value]="value?.start ? (value.start | date:'MM/dd/yyyy') : ''"
             placeholder="MM/DD/YYYY"
             readonly
             (click)="open()"
           />
+          <div class="fieldError" *ngIf="startFieldMessage()">
+            {{ startFieldMessage() }}
+          </div>
         </div>
 
         <div class="field">
           <div class="fieldLabel">End date</div>
           <input
+            [class.invalid]="showEndInvalid()"
             [value]="value?.end ? (value.end | date:'MM/dd/yyyy') : ''"
             placeholder="MM/DD/YYYY"
             readonly
             (click)="open()"
           />
+          <div class="fieldError" *ngIf="endFieldMessage()">
+            {{ endFieldMessage() }}
+          </div>
         </div>
+      </div>
+
+      <!-- General error ONLY when both are missing -->
+      <div class="generalError" *ngIf="generalMessage() && !isOpen()">
+        {{ generalMessage() }}
       </div>
 
       <div class="panel" *ngIf="isOpen()">
         <div class="left">
           <div class="sectionTitle">Select Range</div>
+
           <div class="quickList">
             <button
               class="quickBtn"
               type="button"
               *ngFor="let q of quick"
+              [class.active]="activePreset() === q.key"
               (click)="onQuickSelect(q.key)"
             >
               {{ q.label }}
             </button>
+
+            <!-- Custom (informational only, not clickable) -->
+            <div class="quickBtn custom" [class.active]="activePreset() === 'custom'">
+              Custom
+            </div>
           </div>
         </div>
 
@@ -196,6 +234,11 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
             <button class="btn" type="button" (click)="close()">Close</button>
           </div>
 
+          <!-- General error ONLY when both missing (while open) -->
+          <div class="footerError" *ngIf="generalMessage() && isOpen()">
+            {{ generalMessage() }}
+          </div>
+
           <div class="hint" *ngIf="isOpen()">
             <ng-container *ngIf="!value.start">Click a date to set <b>Start</b>.</ng-container>
             <ng-container *ngIf="value.start && !value.end">Now click a date to set <b>End</b>.</ng-container>
@@ -207,13 +250,40 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
   `,
   styles: [`
     .drp { position: relative; }
+
     .inputs { display:flex; gap:12px; }
     .field { display:flex; flex-direction:column; gap:6px; flex:1; }
     .fieldLabel { font-size:12px; color:#6b7280; }
-    input { height:36px; border:1px solid #d1d5db; border-radius:10px; padding:0 10px; cursor:pointer; }
+
+    input {
+      height:36px;
+      border:1px solid #d1d5db;
+      border-radius:10px;
+      padding:0 10px;
+      cursor:pointer;
+      outline:none;
+      background:#fff;
+    }
+
+    input.invalid {
+      border-color:#ef4444;
+      box-shadow:0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .fieldError {
+      font-size:12px;
+      color:#b91c1c;
+      margin-top:4px;
+    }
+
+    .generalError {
+      margin-top:8px;
+      font-size:12px;
+      color:#b91c1c;
+    }
 
     .panel {
-      position:absolute; z-index:20; top:52px; left:0;
+      position:absolute; z-index:20; top:64px; left:0;
       width:min(980px, 100%);
       border:1px solid #e5e7eb; border-radius:14px;
       background:#fff; display:grid; grid-template-columns:260px 1fr;
@@ -223,8 +293,30 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
     .left { border-right:1px solid #f3f4f6; padding:14px; background:#fafafa; }
     .sectionTitle { font-size:13px; font-weight:600; margin-bottom:10px; }
     .quickList { display:flex; flex-direction:column; gap:8px; }
-    .quickBtn { text-align:left; border:1px solid #e5e7eb; border-radius:10px; padding:10px; background:#fff; cursor:pointer; }
+
+    .quickBtn {
+      text-align:left;
+      border:1px solid #e5e7eb;
+      border-radius:10px;
+      padding:10px;
+      background:#fff;
+      cursor:pointer;
+      user-select:none;
+    }
     .quickBtn:hover { background:#f9fafb; }
+    .quickBtn.active {
+      border-color:#111827;
+      box-shadow:0 0 0 2px rgba(17,24,39,.10);
+      background:#f3f4f6;
+      font-weight:600;
+    }
+
+    .quickBtn.custom {
+      cursor:default;
+      background:#fff;
+      color:#374151;
+    }
+    .quickBtn.custom:hover { background:#fff; }
 
     .right { padding:14px; }
 
@@ -232,7 +324,7 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
     .cal { border:1px solid #e5e7eb; border-radius:12px; padding:10px; }
 
     .calHeader { display:grid; grid-template-columns:36px 1fr 36px; align-items:center; gap:8px; }
-    .headerCenter { display:flex; gap:8px; justify-content:center; align-items:center; }
+    .headerCenter { display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap; }
     .select { height:32px; border:1px solid #d1d5db; border-radius:10px; padding:0 8px; background:#fff; }
     .iconBtn { height:32px; width:32px; border:1px solid #d1d5db; border-radius:10px; background:#fff; cursor:pointer; }
 
@@ -253,25 +345,125 @@ function calcQuickRange(key: QuickKey, today: Date): DateRange {
     .cell.start, .cell.end { background:#111827; color:#fff; }
 
     .footer { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
-    .btn { height:34px; border-radius:10px; border:1px solid #111827; background:#111827; color:#fff; padding:0 12px; cursor:pointer; }
+    .btn {
+      height:34px;
+      border-radius:10px;
+      border:1px solid #111827;
+      background:#111827;
+      color:#fff;
+      padding:0 12px;
+      cursor:pointer;
+    }
     .btn.ghost { background:transparent; color:#111827; }
 
+    .footerError {
+      margin-top:10px;
+      font-size:12px;
+      color:#b91c1c;
+    }
+
     .hint { margin-top:10px; font-size:12px; color:#374151; }
+
+    /* ✅ Responsive improvements (mobile) */
+    @media (max-width: 720px) {
+      .inputs { flex-direction:column; }
+      .panel {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        max-height: calc(100vh - 20px);
+        grid-template-columns: 1fr;
+        overflow: auto;
+      }
+      .left {
+        border-right: none;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .quickList {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 8px;
+        padding-bottom: 6px;
+      }
+      .quickBtn {
+        min-width: 140px;
+        white-space: nowrap;
+      }
+    }
   `],
 })
 export class DateRangePickerComponent {
-  @Input({ required: true }) value!: DateRange;
+  private _value!: DateRange;
+
+  @Input({ required: true })
+  set value(v: DateRange) {
+    this._value = v;
+
+    // If parent sends a valid range again, remove errors + update highlight.
+    if (v?.start && v?.end) {
+      this.showError.set(false);
+      const p = this.detectPreset(v);
+      if (p) this.activePreset.set(p);
+    }
+  }
+  get value(): DateRange {
+    return this._value;
+  }
+
   @Output() valueChange = new EventEmitter<DateRange>();
 
   @Input() autoCloseOnQuickSelect = false;
 
-  quick = QUICK;
+  /** Prototype 1 default: "independent" | Prototype 2: "dependent" */
+  @Input() calendarMode: 'independent' | 'dependent' = 'independent';
+
+  /** Prototype 1 default: false | Prototype 2: true */
+  @Input() includeLastYear = false;
+
+  get quick() {
+    return this.includeLastYear ? QUICK_WITH_LAST_YEAR : QUICK_BASE;
+  }
+
   dow = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   months = Array.from({ length: 12 }, (_, i) => monthName(i));
 
   private today = normalizeDate(new Date());
 
   isOpen = signal(false);
+
+  // User has tried to leave invalid (Clear or Close invalid)
+  private showError = signal(false);
+
+  // Which quick preset is highlighted
+  activePreset = signal<ActivePreset>('last90'); // default report behavior
+
+  // Validation signals
+  missingStart = computed(() => !this.value?.start);
+  missingEnd = computed(() => !this.value?.end);
+
+  showStartInvalid = computed(() => this.showError() && this.missingStart());
+  showEndInvalid = computed(() => this.showError() && this.missingEnd());
+
+  startFieldMessage = computed(() => {
+    if (!this.showError()) return '';
+    if (this.missingStart() && !this.missingEnd()) return 'Please select a start date.';
+    return '';
+  });
+
+  endFieldMessage = computed(() => {
+    if (!this.showError()) return '';
+    if (!this.missingStart() && this.missingEnd()) return 'Please select an end date.';
+    return '';
+  });
+
+  generalMessage = computed(() => {
+    if (!this.showError()) return '';
+    if (this.missingStart() && this.missingEnd()) return 'Please select a start and end date.';
+    return '';
+  });
 
   topMonth = signal<Date>(startOfMonth(this.today));
   bottomMonth = signal<Date>(startOfMonth(addMonths(this.today, 1)));
@@ -290,6 +482,19 @@ export class DateRangePickerComponent {
   constructor(private host: ElementRef<HTMLElement>) {}
 
   private ensureDifferentMonths(changed: 'top' | 'bottom') {
+    // Prototype 2 behavior: ALWAYS consecutive months
+    if (this.calendarMode === 'dependent') {
+      if (changed === 'top') {
+        const top = this.topMonth();
+        this.bottomMonth.set(startOfMonth(addMonths(top, 1)));
+      } else {
+        const bottom = this.bottomMonth();
+        this.topMonth.set(startOfMonth(addMonths(bottom, -1)));
+      }
+      return;
+    }
+
+    // Prototype 1 behavior: only prevent same-month collision
     const top = this.topMonth();
     const bottom = this.bottomMonth();
     if (!isSameMonth(top, bottom)) return;
@@ -302,8 +507,20 @@ export class DateRangePickerComponent {
     return !!(range.start && !range.end);
   }
 
+  private detectPreset(range: DateRange): ActivePreset {
+    const s = range.start ? normalizeDate(range.start) : null;
+    const e = range.end ? normalizeDate(range.end) : null;
+    if (!s || !e) return null;
+
+    const candidates = this.includeLastYear ? QUICK_WITH_LAST_YEAR : QUICK_BASE;
+    for (const c of candidates) {
+      const r = calcQuickRange(c.key, this.today);
+      if (sameDate(r.start, s) && sameDate(r.end, e)) return c.key;
+    }
+    return 'custom';
+  }
+
   // Used ONLY for open / clear / quick select.
-  // We intentionally do NOT call this during manual selection to prevent confusing month jumps.
   private syncCalendarsToRange(range: DateRange) {
     const s = range.start ? normalizeDate(range.start) : null;
     const e = range.end ? normalizeDate(range.end) : null;
@@ -313,6 +530,7 @@ export class DateRangePickerComponent {
       return;
     }
 
+    // Empty => reset to current + next month
     if (!s && !e) {
       this.topMonth.set(startOfMonth(this.today));
       this.bottomMonth.set(startOfMonth(addMonths(this.today, 1)));
@@ -320,6 +538,16 @@ export class DateRangePickerComponent {
       return;
     }
 
+    // Prototype 2: anchor month and force consecutive
+    if (this.calendarMode === 'dependent') {
+      const anchor = s ?? e ?? this.today;
+      const top = startOfMonth(anchor);
+      this.topMonth.set(top);
+      this.bottomMonth.set(startOfMonth(addMonths(top, 1)));
+      return;
+    }
+
+    // Prototype 1 behavior
     if (s && e) {
       if (isSameMonth(s, e)) {
         this.topMonth.set(startOfMonth(s));
@@ -335,23 +563,42 @@ export class DateRangePickerComponent {
   open() {
     this.isOpen.set(true);
     this.syncCalendarsToRange(this.value);
+
+    const p = this.detectPreset(this.value);
+    if (p) this.activePreset.set(p);
   }
 
+  // ✅ FIX: defer validation to next microtask so parent Input has time to update
   close() {
     this.isOpen.set(false);
+
+    queueMicrotask(() => {
+      const hasStart = !!this.value?.start;
+      const hasEnd = !!this.value?.end;
+      this.showError.set(!(hasStart && hasEnd));
+    });
   }
 
   clear() {
     const next: DateRange = { start: null, end: null };
     this.valueChange.emit(next);
-    this.isOpen.set(false);
+
+    this.showError.set(true);
+    this.activePreset.set(null);
+
+    this.isOpen.set(true);
     this.syncCalendarsToRange(next);
   }
 
   onQuickSelect(key: QuickKey) {
     const next = calcQuickRange(key, this.today);
     this.valueChange.emit(next);
+
+    this.showError.set(false);
+    this.activePreset.set(key);
+
     this.syncCalendarsToRange(next);
+
     if (this.autoCloseOnQuickSelect) this.isOpen.set(false);
   }
 
@@ -399,11 +646,6 @@ export class DateRangePickerComponent {
     }
   }
 
-  // ✅ Selection UX (no calendar jumping):
-  // 1st click => start
-  // 2nd click => end (or move start backward)
-  // 3rd click (start+end set) => reset and start again
-  // IMPORTANT: We do NOT call syncCalendarsToRange() here to avoid confusing view changes.
   pickDate(d: Date) {
     const clicked = normalizeDate(d);
     const start = this.value.start ? normalizeDate(this.value.start) : null;
@@ -421,6 +663,12 @@ export class DateRangePickerComponent {
           : { start, end: clicked };
 
       this.valueChange.emit(next);
+
+      if (next.start && next.end) {
+        this.showError.set(false);
+        const p = this.detectPreset(next);
+        this.activePreset.set(p ?? 'custom');
+      }
       return;
     }
 
@@ -436,11 +684,17 @@ export class DateRangePickerComponent {
   }
 
   isStart(d: Date): boolean {
-    return !!(this.value.start && isSameDay(normalizeDate(d), normalizeDate(this.value.start)));
+    return !!(
+      this.value.start &&
+      isSameDay(normalizeDate(d), normalizeDate(this.value.start))
+    );
   }
 
   isEnd(d: Date): boolean {
-    return !!(this.value.end && isSameDay(normalizeDate(d), normalizeDate(this.value.end)));
+    return !!(
+      this.value.end &&
+      isSameDay(normalizeDate(d), normalizeDate(this.value.end))
+    );
   }
 
   label(d: Date): string {
@@ -452,7 +706,7 @@ export class DateRangePickerComponent {
     if (!this.isOpen()) return;
     const el = this.host.nativeElement;
     if (ev.target instanceof Node && !el.contains(ev.target)) {
-      this.isOpen.set(false);
+      this.close();
     }
   }
 }

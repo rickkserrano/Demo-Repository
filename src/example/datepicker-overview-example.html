@@ -1,14 +1,52 @@
 <div class="page">
-  <div class="label">Current selection</div>
-  <div class="value">
-    <code>{{ range.start ? (range.start | date:'yyyy-MM-dd') : '—' }}</code>
-    →
-    <code>{{ range.end ? (range.end | date:'yyyy-MM-dd') : '—' }}</code>
-  </div>
+  <h1 class="pageTitle">Date Range Prototypes</h1>
 
-  <app-date-range-picker
-    [value]="range"
-    (valueChange)="onRangeChange($event)"
-    [autoCloseOnQuickSelect]="false"
-  ></app-date-range-picker>
+  <!-- Prototype 1 -->
+  <section class="prototype">
+    <div class="prototypeHeader">
+      <h2 class="prototypeTitle">Prototype 1 — Independent Calendars</h2>
+      <p class="prototypeSubtitle">
+        Same UI, but calendars are independents
+      </p>
+    </div>
+
+    <div class="label">Current selection</div>
+    <div class="value">
+      <code>{{ range.start ? (range.start | date:'yyyy-MM-dd') : '—' }}</code>
+      →
+      <code>{{ range.end ? (range.end | date:'yyyy-MM-dd') : '—' }}</code>
+    </div>
+
+    <app-date-range-picker
+      [value]="range"
+      (valueChange)="onRangeChange($event)"
+      [autoCloseOnQuickSelect]="false"
+    ></app-date-range-picker>
+  </section>
+
+  <!-- Prototype 2 -->
+  <section class="prototype">
+    <div class="prototypeHeader">
+      <h2 class="prototypeTitle">Prototype 2 — Dependent Calendars (2 months)</h2>
+      <p class="prototypeSubtitle">
+        Same UI, but calendars are linked (consecutive months) and includes “Last year”.
+      </p>
+    </div>
+
+    <div class="label">Current selection</div>
+    <div class="value">
+      <code>{{ range2.start ? (range2.start | date:'yyyy-MM-dd') : '—' }}</code>
+      →
+      <code>{{ range2.end ? (range2.end | date:'yyyy-MM-dd') : '—' }}</code>
+    </div>
+
+    <app-date-range-picker
+      [value]="range2"
+      (valueChange)="onRange2Change($event)"
+      [autoCloseOnQuickSelect]="false"
+      calendarMode="dependent"
+      [includeLastYear]="true"
+    ></app-date-range-picker>
+  </section>
 </div>
+<p>By Ricardo Serrano</p>
