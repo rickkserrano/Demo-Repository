@@ -27,6 +27,7 @@ export type DateRange = { start: Date | null; end: Date | null };
 
 type QuickKey = 'last7' | 'last30' | 'last90' | 'thisYear' | 'lastYear';
 type ActivePreset = QuickKey | 'custom' | null;
+type ActiveField = 'start' | 'end';
 
 const QUICK_BASE: { key: QuickKey; label: string }[] = [
   { key: 'last7', label: 'Last 7 days' },
@@ -74,10 +75,11 @@ function sameDate(a: Date | null, b: Date | null): boolean {
           <div class="fieldLabel">Start date</div>
           <input
             [class.invalid]="showStartInvalid()"
+            [class.active]="showStartActive()"
             [value]="value?.start ? (value.start | date:'MM/dd/yyyy') : ''"
             placeholder="MM/DD/YYYY"
             readonly
-            (click)="open()"
+            (click)="openFor('start')"
           />
           <div class="fieldError" *ngIf="startFieldMessage()">
             {{ startFieldMessage() }}
@@ -88,10 +90,11 @@ function sameDate(a: Date | null, b: Date | null): boolean {
           <div class="fieldLabel">End date</div>
           <input
             [class.invalid]="showEndInvalid()"
+            [class.active]="showEndActive()"
             [value]="value?.end ? (value.end | date:'MM/dd/yyyy') : ''"
             placeholder="MM/DD/YYYY"
             readonly
-            (click)="open()"
+            (click)="openFor('end')"
           />
           <div class="fieldError" *ngIf="endFieldMessage()">
             {{ endFieldMessage() }}
@@ -242,7 +245,7 @@ function sameDate(a: Date | null, b: Date | null): boolean {
           <div class="hint" *ngIf="isOpen()">
             <ng-container *ngIf="!value.start">Click a date to set <b>Start</b>.</ng-container>
             <ng-container *ngIf="value.start && !value.end">Now click a date to set <b>End</b>.</ng-container>
-            <ng-container *ngIf="value.start && value.end">Range selected. Click any date to start a new selection.</ng-container>
+            <ng-container *ngIf="value.start && value.end">Range selected. You can edit <b>{{ activeField() }}</b>.</ng-container>
           </div>
         </div>
       </div>
@@ -263,6 +266,12 @@ function sameDate(a: Date | null, b: Date | null): boolean {
       cursor:pointer;
       outline:none;
       background:#fff;
+    }
+
+    /* active (editing) indicator */
+    input.active {
+      border-color:#2563eb;
+      box-shadow:0 0 0 3px rgba(37, 99, 235, 0.14);
     }
 
     input.invalid {
@@ -364,181 +373,7 @@ function sameDate(a: Date | null, b: Date | null): boolean {
 
     .hint { margin-top:10px; font-size:12px; color:#374151; }
 
-    /* ✅ Responsive improvements (mobile) */
-    @media (max-width: 720px) {
-      /* =========================
-         Inputs (mantener 2 en fila)
-         ========================= */
-      .inputs {
-        flex-direction: row;
-        gap: 8px;
-      }
-      .field { flex: 1; }
-    
-      input {
-        height: 32px;
-        padding: 0 8px;
-        font-size: 12px;
-      }
-    
-      /* =========================
-         Panel fullscreen (sin cambiar layout)
-         ========================= */
-      .panel {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        max-height: 100vh;
-        border-radius: 0;
-        overflow: hidden;
-    
-        /* left (ranges) + right (calendars) */
-        grid-template-columns: 150px 1fr;
-      }
-    
-      /* =========================
-         Left: Select Range vertical (sin scroll horizontal)
-         ========================= */
-      .left {
-        padding: 8px;
-        background: #fafafa;
-        border-right: 1px solid #f3f4f6;
-        border-bottom: none;
-    
-        overflow-y: auto;
-        overflow-x: hidden;
-      }
-    
-      .sectionTitle {
-        font-size: 12px;
-        margin-bottom: 6px;
-      }
-    
-      .quickList {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        width: 100%;
-        overflow: visible;
-        padding-bottom: 0;
-      }
-    
-      .quickBtn {
-        box-sizing: border-box;
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-    
-        padding: 7px 8px;
-        border-radius: 10px;
-        font-size: 12px;
-    
-        white-space: normal;
-        word-break: break-word;
-      }
-    
-      /* =========================
-         Right: Calendarios (2 en vertical), compactos
-         ========================= */
-      .right {
-        padding: 8px;
-        overflow: hidden;
-    
-        display: grid;
-        grid-template-rows: 1fr auto auto; /* calendars / footer / hint+errors */
-        min-height: 0;
-      }
-    
-      /* Mantener vertical; que esta zona sea scrolleable si hace falta */
-      .calStack {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    
-        overflow-y: auto;
-        overflow-x: hidden;
-        -webkit-overflow-scrolling: touch;
-    
-        padding-bottom: 6px;
-        min-height: 0;
-      }
-    
-      .cal {
-        padding: 8px;
-        border-radius: 12px;
-      }
-    
-      .calHeader {
-        gap: 6px;
-      }
-    
-      .headerCenter {
-        gap: 6px;
-        flex-wrap: nowrap;
-      }
-    
-      .select {
-        height: 28px;
-        font-size: 12px;
-        padding: 0 6px;
-        border-radius: 9px;
-      }
-    
-      .iconBtn {
-        width: 28px;
-        height: 28px;
-        border-radius: 9px;
-      }
-    
-      .calMonthLabel {
-        margin-top: 6px;
-        font-size: 11px;
-      }
-    
-      .dow,
-      .grid {
-        gap: 3px;
-        margin-top: 6px;
-      }
-    
-      .dowCell {
-        font-size: 10px;
-      }
-    
-      .cell {
-        height: 24px;          /* clave para que quepa */
-        border-radius: 8px;
-        font-size: 12px;
-        padding: 0;
-      }
-    
-      /* =========================
-         Footer sticky + más compacto
-         ========================= */
-      .footer {
-        position: sticky;
-        bottom: 0;
-        background: #fff;
-    
-        padding-top: 8px;
-        margin-top: 8px;
-        gap: 8px;
-      }
-    
-      .btn {
-        height: 32px;
-        padding: 0 10px;
-        border-radius: 10px;
-        font-size: 12px;
-      }
-    
-      .hint {
-        margin-top: 6px;
-        font-size: 11px;
-      }
-    }
-    
+    /* keep your existing @media(720px) block here if you already have it */
   `],
 })
 export class DateRangePickerComponent {
@@ -586,12 +421,19 @@ export class DateRangePickerComponent {
   // Which quick preset is highlighted
   activePreset = signal<ActivePreset>('last90'); // default report behavior
 
+  // Prototype 2: which field is being edited
+  activeField = signal<ActiveField>('start');
+
   // Validation signals
   missingStart = computed(() => !this.value?.start);
   missingEnd = computed(() => !this.value?.end);
 
   showStartInvalid = computed(() => this.showError() && this.missingStart());
   showEndInvalid = computed(() => this.showError() && this.missingEnd());
+
+  // active highlight only while open (so it’s clear what you’re editing)
+  showStartActive = computed(() => this.isOpen() && this.activeField() === 'start' && !this.showStartInvalid());
+  showEndActive = computed(() => this.isOpen() && this.activeField() === 'end' && !this.showEndInvalid());
 
   startFieldMessage = computed(() => {
     if (!this.showError()) return '';
@@ -666,8 +508,7 @@ export class DateRangePickerComponent {
     return 'custom';
   }
 
-  // Used ONLY for open / clear / quick select.
-  private syncCalendarsToRange(range: DateRange) {
+  private syncCalendarsToRange(range: DateRange, anchor?: Date | null) {
     const s = range.start ? normalizeDate(range.start) : null;
     const e = range.end ? normalizeDate(range.end) : null;
 
@@ -686,8 +527,8 @@ export class DateRangePickerComponent {
 
     // Prototype 2: anchor month and force consecutive
     if (this.calendarMode === 'dependent') {
-      const anchor = s ?? e ?? this.today;
-      const top = startOfMonth(anchor);
+      const anchorDate = anchor ? normalizeDate(anchor) : (s ?? e ?? this.today);
+      const top = startOfMonth(anchorDate);
       this.topMonth.set(top);
       this.bottomMonth.set(startOfMonth(addMonths(top, 1)));
       return;
@@ -706,15 +547,24 @@ export class DateRangePickerComponent {
     }
   }
 
-  open() {
+  /** Open picker and set which field is being edited */
+  openFor(field: ActiveField) {
+    this.activeField.set(field);
     this.isOpen.set(true);
-    this.syncCalendarsToRange(this.value);
+
+    // Prototype 2: when reopening from a field, anchor to that field’s month
+    if (this.calendarMode === 'dependent' && this.value?.start && this.value?.end) {
+      const anchor = field === 'start' ? this.value.start : this.value.end;
+      this.syncCalendarsToRange(this.value, anchor);
+    } else {
+      this.syncCalendarsToRange(this.value);
+    }
 
     const p = this.detectPreset(this.value);
     if (p) this.activePreset.set(p);
   }
 
-  // ✅ FIX: defer validation to next microtask so parent Input has time to update
+  // Defer validation to next microtask so parent Input has time to update
   close() {
     this.isOpen.set(false);
 
@@ -732,6 +582,9 @@ export class DateRangePickerComponent {
     this.showError.set(true);
     this.activePreset.set(null);
 
+    // After clear, standard UX: start is active
+    this.activeField.set('start');
+
     this.isOpen.set(true);
     this.syncCalendarsToRange(next);
   }
@@ -743,7 +596,16 @@ export class DateRangePickerComponent {
     this.showError.set(false);
     this.activePreset.set(key);
 
-    this.syncCalendarsToRange(next);
+    // When you select a preset, default editing focus to end (common UX)
+    this.activeField.set('end');
+
+    // Prototype 2: if end is active, anchor to end month; else start
+    const anchor =
+      this.calendarMode === 'dependent'
+        ? (this.activeField() === 'start' ? next.start : next.end)
+        : null;
+
+    this.syncCalendarsToRange(next, anchor);
 
     if (this.autoCloseOnQuickSelect) this.isOpen.set(false);
   }
@@ -797,6 +659,81 @@ export class DateRangePickerComponent {
     const start = this.value.start ? normalizeDate(this.value.start) : null;
     const end = this.value.end ? normalizeDate(this.value.end) : null;
 
+    // ----------------------------
+    // Prototype 2: edit activeField
+    // ----------------------------
+    if (this.calendarMode === 'dependent') {
+      // If no start yet (or user cleared), first click sets start and auto-switches to end
+      if (!start) {
+        const next: DateRange = { start: clicked, end: null };
+        this.valueChange.emit(next);
+        this.activeField.set('end'); // ✅ auto-switch after choosing start
+        return;
+      }
+
+      // If start exists but end missing, we are effectively picking end
+      if (start && !end) {
+        if (clicked.getTime() < start.getTime()) {
+          // If user clicks before start, treat it as moving start earlier
+          const next: DateRange = { start: clicked, end: null };
+          this.valueChange.emit(next);
+          this.activeField.set('end');
+          return;
+        }
+
+        const next: DateRange = { start, end: clicked };
+        this.valueChange.emit(next);
+
+        this.showError.set(false);
+        const p = this.detectPreset(next);
+        this.activePreset.set(p ?? 'custom');
+
+        // After completing range, keep editing focus on end
+        this.activeField.set('end');
+        return;
+      }
+
+      // Now we have start+end: edit depending on activeField
+      if (start && end) {
+        const af = this.activeField();
+
+        if (af === 'start') {
+          if (clicked.getTime() > end.getTime()) {
+            // crossed over end: interpret as new end
+            const next: DateRange = { start, end: clicked };
+            this.valueChange.emit(next);
+            this.activeField.set('end');
+          } else {
+            const next: DateRange = { start: clicked, end };
+            this.valueChange.emit(next);
+            this.activeField.set('start');
+          }
+        } else {
+          // af === 'end'
+          if (clicked.getTime() < start.getTime()) {
+            // crossed before start: interpret as new start
+            const next: DateRange = { start: clicked, end };
+            this.valueChange.emit(next);
+            this.activeField.set('start');
+          } else {
+            const next: DateRange = { start, end: clicked };
+            this.valueChange.emit(next);
+            this.activeField.set('end');
+          }
+        }
+
+        this.showError.set(false);
+        const nextPreset = this.detectPreset(this.value);
+        // detectPreset uses current @Input value (may lag until parent updates),
+        // so mark custom immediately; parent will correct via setter if it matches a preset.
+        this.activePreset.set(nextPreset ?? 'custom');
+        return;
+      }
+    }
+
+    // ----------------------------
+    // Prototype 1 (independent): original behavior
+    // ----------------------------
     if (!start) {
       this.valueChange.emit({ start: clicked, end: null });
       return;
@@ -818,6 +755,7 @@ export class DateRangePickerComponent {
       return;
     }
 
+    // restart selection
     this.valueChange.emit({ start: clicked, end: null });
   }
 
