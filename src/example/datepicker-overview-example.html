@@ -1,0 +1,14 @@
+<div class="page">
+  <div class="label">Current selection</div>
+  <div class="value">
+    <code>{{ range.start ? (range.start | date:'yyyy-MM-dd') : '—' }}</code>
+    →
+    <code>{{ range.end ? (range.end | date:'yyyy-MM-dd') : '—' }}</code>
+  </div>
+
+  <app-date-range-picker
+    [value]="range"
+    (valueChange)="onRangeChange($event)"
+    [autoCloseOnQuickSelect]="false"
+  ></app-date-range-picker>
+</div>
