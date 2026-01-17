@@ -366,33 +366,105 @@ function sameDate(a: Date | null, b: Date | null): boolean {
 
     /* ✅ Responsive improvements (mobile) */
     @media (max-width: 720px) {
-      .inputs { flex-direction:column; }
+      /* Inputs: mantener 2 campos en una fila */
+      .inputs {
+        flex-direction: row;
+        gap: 8px;
+      }
+      .field { flex: 1; }
+      input {
+        height: 34px;
+        padding: 0 8px;
+        font-size: 13px;
+      }
+    
+      /* Panel: fullscreen modal */
       .panel {
         position: fixed;
-        top: 10px;
-        left: 10px;
-        right: 10px;
-        width: auto;
-        max-height: calc(100vh - 20px);
-        grid-template-columns: 1fr;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+        overflow: hidden;
+        /* mantenemos 2 columnas: izquierda (rangos) + derecha (calendario) */
+        grid-template-columns: 170px 1fr;
+      }
+    
+      /* Left (Select Range): vertical, compacta, sin scroll horizontal */
+      .left {
+        padding: 10px;
+        background: #fafafa;
+        border-right: 1px solid #f3f4f6;
+        border-bottom: none;
         overflow: auto;
       }
-      .left {
-        border-right: none;
-        border-bottom: 1px solid #f3f4f6;
-      }
+      .sectionTitle { margin-bottom: 8px; }
+    
       .quickList {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        overflow-x: auto;
+        display: flex;
+        flex-direction: column; /* ✅ vertical */
         gap: 8px;
-        padding-bottom: 6px;
+        overflow: visible;      /* ✅ sin scroll horizontal */
+        padding-bottom: 0;
       }
+    
       .quickBtn {
-        min-width: 140px;
-        white-space: nowrap;
+        width: 100%;
+        min-width: 0;
+        padding: 9px 10px;
+        border-radius: 10px;
+        white-space: normal;
+        font-size: 13px;
       }
+    
+      /* Right side: que el calendario sea usable */
+      .right {
+        padding: 10px;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: 1fr auto auto; /* calendars / footer / messages */
+        min-height: 0;
+      }
+    
+      /*
+        Calendarios: en móvil mostramos 1 por "pantalla" con swipe horizontal,
+        para que no quede todo apretado.
+        (Desktop sigue igual, porque esto solo aplica en el media query)
+      */
+      .calStack {
+        flex-direction: row;
+        gap: 10px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
+        min-height: 0;
+      }
+    
+      .cal {
+        min-width: calc(100vw - 170px - 20px); /* right column width aprox */
+        scroll-snap-align: start;
+        padding: 8px;
+      }
+    
+      /* Compactar un poco el grid */
+      .cell { height: 28px; border-radius: 9px; }
+      .dowCell { font-size: 10px; }
+      .calMonthLabel { font-size: 11px; }
+    
+      /* Footer sticky para que siempre puedas cerrar/clear */
+      .footer {
+        position: sticky;
+        bottom: 0;
+        background: #fff;
+        padding-top: 8px;
+        margin-top: 8px;
+      }
+      .btn { height: 36px; }
+      .hint { margin-top: 8px; }
     }
+    
   `],
 })
 export class DateRangePickerComponent {
