@@ -302,11 +302,12 @@ export class DateRangePickerComponent {
     return !!(range.start && !range.end);
   }
 
+  // Used ONLY for open / clear / quick select.
+  // We intentionally do NOT call this during manual selection to prevent confusing month jumps.
   private syncCalendarsToRange(range: DateRange) {
     const s = range.start ? normalizeDate(range.start) : null;
     const e = range.end ? normalizeDate(range.end) : null;
 
-    // Do NOT rearrange calendars while user is mid-selection
     if (this.isSelectingRange(range)) {
       this.ensureDifferentMonths('bottom');
       return;
@@ -398,9 +399,11 @@ export class DateRangePickerComponent {
     }
   }
 
+  // ✅ Selection UX (no calendar jumping):
   // 1st click => start
   // 2nd click => end (or move start backward)
   // 3rd click (start+end set) => reset and start again
+  // IMPORTANT: We do NOT call syncCalendarsToRange() here to avoid confusing view changes.
   pickDate(d: Date) {
     const clicked = normalizeDate(d);
     const start = this.value.start ? normalizeDate(this.value.start) : null;
@@ -408,7 +411,7 @@ export class DateRangePickerComponent {
 
     if (!start) {
       this.valueChange.emit({ start: clicked, end: null });
-      return; // no calendar jump
+      return;
     }
 
     if (start && !end) {
@@ -418,11 +421,9 @@ export class DateRangePickerComponent {
           : { start, end: clicked };
 
       this.valueChange.emit(next);
-      if (next.end) this.syncCalendarsToRange(next); // ok to align after completing range
       return;
     }
 
-    // reset on third click
     this.valueChange.emit({ start: clicked, end: null });
   }
 
@@ -438,7 +439,6 @@ export class DateRangePickerComponent {
     return !!(this.value.start && isSameDay(normalizeDate(d), normalizeDate(this.value.start)));
   }
 
-  // ✅ FIXED (this was the broken line)
   isEnd(d: Date): boolean {
     return !!(this.value.end && isSameDay(normalizeDate(d), normalizeDate(this.value.end)));
   }
