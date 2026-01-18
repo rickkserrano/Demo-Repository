@@ -600,6 +600,47 @@ export class DateRangePickerProto3Component {
     }
     return null;
   }
+  private monthIndex(d: Date): number {
+    const n = normalizeDate(d);
+    return n.getFullYear() * 12 + n.getMonth(); // month: 0..11
+  }
+  
+  private clampToToday(d: Date): Date {
+    const n = normalizeDate(d);
+    return n.getTime() > this.today.getTime() ? this.today : n;
+  }
+  
+  /**
+   * Si el rango actual (draft) NO cabe en dos meses consecutivos,
+   * reubica los dos calendarios dependiendo de qué campo se está editando:
+   * - start: start month arriba, siguiente abajo
+   * - end: end month abajo, anterior arriba
+   */
+  private jumpCalendarsIfNeeded(target: 'start' | 'end') {
+    if (!this.isOpen()) return; // solo si panel está abierto
+  
+    const { start, end } = this.draft();
+    if (!start || !end) return; // solo si hay info previa completa
+  
+    const s = normalizeDate(start);
+    const e = this.clampToToday(end);
+  
+    const diffMonths = this.monthIndex(e) - this.monthIndex(s);
+  
+    // "No caben en 2 meses consecutivos" => separados por 2+ meses
+    if (diffMonths < 2) return;
+  
+    if (target === 'start') {
+      const top = startOfMonth(s);
+      this.topMonth.set(top);
+      this.bottomMonth.set(startOfMonth(addMonths(top, 1)));
+    } else {
+      const bottom = startOfMonth(e);
+      this.bottomMonth.set(bottom);
+      this.topMonth.set(startOfMonth(addMonths(bottom, -1)));
+    }
+  }
+  
 
   toggleMenu() {
     if (this.isOpen()) return;
@@ -673,7 +714,12 @@ export class DateRangePickerProto3Component {
 
   setActive(which: 'start' | 'end') {
     this.activeField.set(which);
+  
+    // Solo cuando estás editando un rango previo (custom ya abierto y draft completo)
+    // y ese rango no cabe en 2 meses consecutivos.
+    this.jumpCalendarsIfNeeded(which);
   }
+  
 
   apply() {
     if (!this.canApply()) {
