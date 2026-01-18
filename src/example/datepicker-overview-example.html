@@ -1,37 +1,25 @@
 <div class="page">
-  <h1 class="pageTitle">Date Range Prototypes</h1>
-
-  <!-- Prototype 1 -->
-  <section class="prototype">
-    <div class="prototypeHeader">
-      <h2 class="prototypeTitle">Prototype 1 — Independent Calendars</h2>
-      <p class="prototypeSubtitle">
-        Same UI, but calendars are independents
-      </p>
-    </div>
+  <div class="section">
+    <h2>Prototype 1</h2>
+    <div class="subtitle">Independent calendars</div>
 
     <div class="label">Current selection</div>
     <div class="value">
-      <code>{{ range.start ? (range.start | date:'yyyy-MM-dd') : '—' }}</code>
+      <code>{{ range1.start ? (range1.start | date:'yyyy-MM-dd') : '—' }}</code>
       →
-      <code>{{ range.end ? (range.end | date:'yyyy-MM-dd') : '—' }}</code>
+      <code>{{ range1.end ? (range1.end | date:'yyyy-MM-dd') : '—' }}</code>
     </div>
 
     <app-date-range-picker
-      [value]="range"
-      (valueChange)="onRangeChange($event)"
-      [autoCloseOnQuickSelect]="false"
+      [prototype]="1"
+      [value]="range1"
+      (valueChange)="range1 = $event"
     ></app-date-range-picker>
-  </section>
+  </div>
 
-  <!-- Prototype 2 -->
-  <section class="prototype">
-    <div class="prototypeHeader">
-      <h2 class="prototypeTitle">Prototype 2 — Dependent Calendars (2 months)</h2>
-      <p class="prototypeSubtitle">
-        Same UI, but calendars are linked (consecutive months) and includes “Last year”.
-      </p>
-    </div>
+  <div class="section">
+    <h2>Prototype 2</h2>
+    <div class="subtitle">Dependent calendars (2 months)</div>
 
     <div class="label">Current selection</div>
     <div class="value">
@@ -41,12 +29,28 @@
     </div>
 
     <app-date-range-picker
+      [prototype]="2"
       [value]="range2"
-      (valueChange)="onRange2Change($event)"
-      [autoCloseOnQuickSelect]="false"
-      calendarMode="dependent"
-      [includeLastYear]="true"
+      (valueChange)="range2 = $event"
     ></app-date-range-picker>
-  </section>
+  </div>
+
+  <div class="section">
+    <h2>Prototype 3</h2>
+    <div class="subtitle">Presets dropdown + Custom (dependent 2 months, no future)</div>
+
+    <div class="label">Current selection</div>
+    <div class="value">
+      <code>{{ range3.start ? (range3.start | date:'yyyy-MM-dd') : '—' }}</code>
+      →
+      <code>{{ range3.end ? (range3.end | date:'yyyy-MM-dd') : '—' }}</code>
+    </div>
+
+    <app-date-range-picker-proto3
+      [value]="range3"
+      (valueChange)="range3 = $event"
+    ></app-date-range-picker-proto3>
+  </div>
 </div>
+
 <p>By Ricardo Serrano</p>

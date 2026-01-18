@@ -1,0 +1,856 @@
+// src/example/date-range-picker-proto3.component.ts
+import { CommonModule } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Input,
+  Output,
+  computed,
+  signal,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import {
+  addDays,
+  addMonths,
+  buildMonthGrid,
+  isSameDay,
+  monthLabel,
+  monthName,
+  normalizeDate,
+  startOfMonth,
+  yearOptions,
+} from './date-utils';
+
+export type DateRange = { start: Date | null; end: Date | null };
+
+type QuickKey = 'today' | 'last7' | 'last30' | 'last90' | 'thisYear' | 'lastYear';
+
+const PRESETS: { key: QuickKey; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'last7', label: 'Last 7 days' },
+  { key: 'last30', label: 'Last 30 days' },
+  { key: 'last90', label: 'Last 90 days' },
+  { key: 'thisYear', label: 'This year' },
+  { key: 'lastYear', label: 'Last year' },
+];
+
+function calcPresetRange(key: QuickKey, today: Date): DateRange {
+  const t = normalizeDate(today);
+
+  if (key === 'today') return { start: t, end: t };
+
+  if (key === 'thisYear') return { start: new Date(t.getFullYear(), 0, 1), end: t };
+
+  if (key === 'lastYear') {
+    const y = t.getFullYear() - 1;
+    return { start: new Date(y, 0, 1), end: new Date(y, 11, 31) };
+  }
+
+  const days = key === 'last7' ? 7 : key === 'last30' ? 30 : 90;
+  return { start: addDays(t, -(days - 1)), end: t };
+}
+
+function formatMMDDYYYY(d: Date): string {
+  const n = normalizeDate(d);
+  const mm = String(n.getMonth() + 1).padStart(2, '0');
+  const dd = String(n.getDate()).padStart(2, '0');
+  const yy = String(n.getFullYear());
+  return `${mm}/${dd}/${yy}`;
+}
+
+@Component({
+  selector: 'app-date-range-picker-proto3',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+    <div class="drp3">
+      <div class="field">
+        <div class="fieldLabel">Date range</div>
+
+        <div class="selectWrap" [class.invalid]="dateRangeInvalid()">
+          <!-- Trigger (shows preset label OR the applied custom range) -->
+          <button
+            type="button"
+            class="selectTrigger"
+            (click)="toggleMenu()"
+            [attr.aria-expanded]="isMenuOpen()"
+          >
+            <span class="triggerText">{{ triggerLabel() }}</span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>
+
+          <!-- Menu -->
+          <div class="menu" *ngIf="isMenuOpen()">
+            <button
+              type="button"
+              class="menuItem"
+              (mousedown)="onCustomMouseDown($event)"
+              (click)="openCustomFromMenu()"
+            >
+              Custom
+            </button>
+
+            <button
+              *ngFor="let p of presets"
+              type="button"
+              class="menuItem"
+              [class.selected]="activePresetKey() === p.key"
+              (click)="applyPreset(p.key)"
+            >
+              {{ p.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="fieldError" *ngIf="dateRangeMessage()">
+          {{ dateRangeMessage() }}
+        </div>
+      </div>
+
+      <!-- Calendar panel (opens only for Custom) -->
+      <div class="panel" *ngIf="isOpen()">
+        <div class="panelTop">
+          <div class="inputs">
+            <div class="field">
+              <div class="fieldLabel">Start date</div>
+              <input
+                readonly
+                [class.active]="activeField() === 'start'"
+                [class.invalid]="showError() && !draft().start"
+                [value]="draft().start ? (draft().start | date:'MM/dd/yyyy') : ''"
+                placeholder="MM/DD/YYYY"
+                (click)="setActive('start')"
+              />
+              <div class="fieldError" *ngIf="showError() && !draft().start">
+                Please select a start date.
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="fieldLabel">End date</div>
+              <input
+                readonly
+                [class.active]="activeField() === 'end'"
+                [class.invalid]="showError() && !draft().end"
+                [value]="draft().end ? (draft().end | date:'MM/dd/yyyy') : ''"
+                placeholder="MM/DD/YYYY"
+                (click)="setActive('end')"
+              />
+              <div class="fieldError" *ngIf="showError() && !draft().end">
+                Please select an end date.
+              </div>
+            </div>
+          </div>
+
+          <div class="generalError" *ngIf="showError() && (!draft().start || !draft().end)">
+            <ng-container *ngIf="!draft().start && !draft().end">
+              Please select a start and end date.
+            </ng-container>
+          </div>
+        </div>
+
+        <div class="calStack">
+          <!-- TOP CALENDAR -->
+          <div class="cal">
+            <div class="calHeader">
+              <button class="iconBtn" type="button" (click)="prevMonth('top')" aria-label="Previous month">←</button>
+
+              <div class="headerCenter">
+                <select class="select" [ngModel]="topMonthIndex()" (ngModelChange)="setMonthIndex('top', $event)">
+                  <option
+                    *ngFor="let m of months; let i=index"
+                    [ngValue]="i"
+                    [disabled]="isFutureMonth('top', i, topYearValue())"
+                  >
+                    {{ m }}
+                  </option>
+                </select>
+
+                <select class="select" [ngModel]="topYearValue()" (ngModelChange)="setYearValue('top', $event)">
+                  <option *ngFor="let y of topYearsLimited()" [ngValue]="y" [disabled]="y > todayYear">
+                    {{ y }}
+                  </option>
+                </select>
+              </div>
+
+              <button
+                class="iconBtn"
+                type="button"
+                (click)="nextMonth('top')"
+                [disabled]="!canGoNext('top')"
+                aria-label="Next month"
+              >→</button>
+            </div>
+
+            <div class="calMonthLabel">{{ label(topMonth()) }}</div>
+
+            <div class="dow">
+              <div class="dowCell" *ngFor="let d of dow">{{ d }}</div>
+            </div>
+
+            <div class="grid">
+              <ng-container *ngFor="let cell of topGrid()">
+                <div *ngIf="cell === null" class="cell empty"></div>
+                <button
+                  *ngIf="cell !== null"
+                  type="button"
+                  class="cell"
+                  [class.inRange]="inRange(cell)"
+                  [class.start]="isStart(cell)"
+                  [class.end]="isEnd(cell)"
+                  [class.disabledCell]="isCellDisabled(cell)"
+                  [disabled]="isCellDisabled(cell)"
+                  (click)="pickDate(cell)"
+                >
+                  {{ cell.getDate() }}
+                </button>
+              </ng-container>
+            </div>
+          </div>
+
+          <!-- BOTTOM CALENDAR -->
+          <div class="cal">
+            <div class="calHeader">
+              <button class="iconBtn" type="button" (click)="prevMonth('bottom')" aria-label="Previous month">←</button>
+
+              <div class="headerCenter">
+                <select class="select" [ngModel]="bottomMonthIndex()" (ngModelChange)="setMonthIndex('bottom', $event)">
+                  <option
+                    *ngFor="let m of months; let i=index"
+                    [ngValue]="i"
+                    [disabled]="isFutureMonth('bottom', i, bottomYearValue())"
+                  >
+                    {{ m }}
+                  </option>
+                </select>
+
+                <select class="select" [ngModel]="bottomYearValue()" (ngModelChange)="setYearValue('bottom', $event)">
+                  <option *ngFor="let y of bottomYearsLimited()" [ngValue]="y" [disabled]="y > todayYear">
+                    {{ y }}
+                  </option>
+                </select>
+              </div>
+
+              <button
+                class="iconBtn"
+                type="button"
+                (click)="nextMonth('bottom')"
+                [disabled]="!canGoNext('bottom')"
+                aria-label="Next month"
+              >→</button>
+            </div>
+
+            <div class="calMonthLabel">{{ label(bottomMonth()) }}</div>
+
+            <div class="dow">
+              <div class="dowCell" *ngFor="let d of dow">{{ d }}</div>
+            </div>
+
+            <div class="grid">
+              <ng-container *ngFor="let cell of bottomGrid()">
+                <div *ngIf="cell === null" class="cell empty"></div>
+                <button
+                  *ngIf="cell !== null"
+                  type="button"
+                  class="cell"
+                  [class.inRange]="inRange(cell)"
+                  [class.start]="isStart(cell)"
+                  [class.end]="isEnd(cell)"
+                  [class.disabledCell]="isCellDisabled(cell)"
+                  [disabled]="isCellDisabled(cell)"
+                  (click)="pickDate(cell)"
+                >
+                  {{ cell.getDate() }}
+                </button>
+              </ng-container>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <button class="btn ghost" type="button" (click)="clearDraft()">Clear dates</button>
+
+          <button
+            class="btn"
+            type="button"
+            (click)="apply()"
+            [disabled]="!canApply()"
+            [class.disabledBtn]="!canApply()"
+          >
+            Apply dates
+          </button>
+        </div>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .drp3 { position: relative; }
+
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .fieldLabel { font-size:12px; color:#6b7280; }
+
+    .selectWrap{
+      position:relative;
+      max-width: 520px;
+    }
+
+    .selectTrigger{
+      height:36px; width:100%;
+      border:1px solid #d1d5db; border-radius:10px;
+      padding:0 10px;
+      background:#fff;
+      cursor:pointer;
+      outline:none;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 8px;
+      text-align:left;
+    }
+    .triggerText{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .caret{ opacity:.7; }
+
+    .selectWrap.invalid .selectTrigger{
+      border-color:#ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .menu{
+      position:absolute;
+      z-index:30;
+      top:42px;
+      left:0;
+      width:100%;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      background:#fff;
+      box-shadow:0 18px 45px rgba(0,0,0,.12);
+      padding:6px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .menuItem{
+      height:34px;
+      border-radius:10px;
+      border:1px solid transparent;
+      background:transparent;
+      cursor:pointer;
+      text-align:left;
+      padding:0 10px;
+    }
+    .menuItem:hover{ background:#f3f4f6; }
+    .menuItem.selected{ background:#e5e7eb; }
+
+    input{
+      height:36px;
+      border:1px solid #d1d5db;
+      border-radius:10px;
+      padding:0 10px;
+      cursor:pointer;
+      background:#fff;
+      outline:none;
+    }
+    input.active{
+      border-color:#2563eb;
+      box-shadow:0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+    input.invalid{
+      border-color:#ef4444;
+      box-shadow:0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .fieldError { font-size:12px; color:#b91c1c; }
+    .generalError { margin-top:6px; font-size:12px; color:#b91c1c; }
+
+    .panel{
+      position:absolute; z-index:20; top:64px; left:0;
+      width:min(980px, 100%);
+      border:1px solid #e5e7eb; border-radius:14px;
+      background:#fff;
+      overflow:hidden;
+      box-shadow:0 18px 45px rgba(0,0,0,.12);
+      padding: 12px;
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+
+    .panelTop { display:flex; flex-direction:column; gap: 6px; }
+    .inputs { display:flex; gap:12px; }
+
+    .calStack { display:flex; flex-direction:column; gap:14px; }
+    .cal { border:1px solid #e5e7eb; border-radius:12px; padding:10px; }
+
+    .calHeader { display:grid; grid-template-columns:36px 1fr 36px; align-items:center; gap:8px; }
+    .headerCenter { display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap; }
+    .select { height:32px; border:1px solid #d1d5db; border-radius:10px; padding:0 8px; background:#fff; }
+    .iconBtn { height:32px; width:32px; border:1px solid #d1d5db; border-radius:10px; background:#fff; cursor:pointer; }
+    .iconBtn[disabled]{ opacity:.5; cursor:not-allowed; }
+
+    .calMonthLabel { margin-top:8px; font-size:12px; color:#6b7280; }
+
+    .dow, .grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-top:8px; }
+    .dowCell { font-size:11px; color:#6b7280; text-align:center; }
+
+    .cell{
+      height:32px; border-radius:10px;
+      border:1px solid transparent;
+      background:#f9fafb;
+      cursor:pointer;
+    }
+    .cell:hover{ border-color:#d1d5db; }
+    .cell.empty{ background:transparent; cursor:default; }
+    .cell.inRange{ background:#e5e7eb; }
+    .cell.start, .cell.end{ background:#111827; color:#fff; }
+    .cell.disabledCell{ opacity:.45; cursor:not-allowed; }
+
+    .footer{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top: 4px;
+    }
+    .btn{
+      height:34px;
+      border-radius:10px;
+      border:1px solid #111827;
+      background:#111827;
+      color:#fff;
+      padding:0 12px;
+      cursor:pointer;
+    }
+    .btn.ghost{ background:transparent; color:#111827; }
+
+    .btn[disabled], .btn.disabledBtn{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+
+    @media (max-width:720px){
+      .panel{
+        position:fixed;
+        inset:0;
+        width:100vw;
+        height:100vh;
+        max-height:100vh;
+        border-radius:0;
+        overflow:auto;
+      }
+      .inputs{ gap:8px; }
+      input, .selectTrigger { height:32px; font-size:12px; padding:0 8px; }
+      .cell{ height:24px; border-radius:8px; }
+      .iconBtn{ width:28px; height:28px; border-radius:9px; }
+      .select{ height:28px; font-size:12px; border-radius:9px; }
+      .selectWrap{ max-width:100%; }
+    }
+  `],
+})
+export class DateRangePickerProto3Component {
+  @Input({ required: true }) value!: DateRange;
+  @Output() valueChange = new EventEmitter<DateRange>();
+
+  presets = PRESETS;
+
+  private today = normalizeDate(new Date());
+  todayYear = this.today.getFullYear();
+  private todayMonth = this.today.getMonth();
+
+  // Applied value (what is currently "active" in the report filter)
+  appliedValue = signal<DateRange>({ start: null, end: null });
+
+  // Presets menu (independent from the calendar panel)
+  isMenuOpen = signal(false);
+
+  // Which preset matches the *applied* range (null => ad-hoc/custom range)
+  activePresetKey = computed<QuickKey | null>(() => {
+    const v = this.appliedValue();
+    if (!v.start || !v.end) return null;
+    return this.detectPreset(v);
+  });
+
+  // What the trigger shows
+  triggerLabel = computed(() => {
+    // ⬅️ NUEVO: mientras se edita Custom, el trigger dice "Custom"
+    if (this.isEditingCustom()) return 'Custom';
+  
+    const v = this.appliedValue();
+    const presetKey = this.activePresetKey();
+  
+    if (presetKey) {
+      return PRESETS.find(p => p.key === presetKey)?.label ?? 'Date range';
+    }
+  
+    if (v.start && v.end) {
+      return `${formatMMDDYYYY(v.start)} - ${formatMMDDYYYY(v.end)}`;
+    }
+  
+    return 'Date range';
+  });
+  
+
+  // Panel + draft (only used while editing custom)
+  isOpen = signal(false);
+  showError = signal(false);
+  activeField = signal<'start' | 'end'>('start');
+  draft = signal<DateRange>({ start: null, end: null });
+
+  // UI-only flag: true while user is editing Custom (calendar open via Custom)
+isEditingCustom = signal(false);
+
+  // Dependent months: default view (TOP previous, BOTTOM current)
+  topMonth = signal<Date>(startOfMonth(addMonths(this.today, -1)));
+  bottomMonth = signal<Date>(startOfMonth(this.today));
+
+  topGrid = computed(() => buildMonthGrid(this.topMonth()));
+  bottomGrid = computed(() => buildMonthGrid(this.bottomMonth()));
+
+  topMonthIndex = computed(() => this.topMonth().getMonth());
+  bottomMonthIndex = computed(() => this.bottomMonth().getMonth());
+  topYearValue = computed(() => this.topMonth().getFullYear());
+  bottomYearValue = computed(() => this.bottomMonth().getFullYear());
+
+  topYearsLimited = computed(() =>
+    yearOptions(this.topMonth().getFullYear(), 6).filter((y) => y <= this.todayYear),
+  );
+  bottomYearsLimited = computed(() =>
+    yearOptions(this.bottomMonth().getFullYear(), 6).filter((y) => y <= this.todayYear),
+  );
+
+  dow = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  months = Array.from({ length: 12 }, (_, i) => monthName(i));
+
+  dateRangeInvalid = computed(() => {
+    const v = this.appliedValue();
+    return !v.start || !v.end;
+  });
+
+  dateRangeMessage = computed(() => {
+    const v = this.appliedValue();
+    if (v.start && v.end) return '';
+    if (!v.start && !v.end) return 'Please select a start and end date.';
+    if (!v.start) return 'Please select a start date.';
+    return 'Please select an end date.';
+  });
+
+  canApply = computed(() => !!(this.draft().start && this.draft().end));
+
+  constructor(private host: ElementRef<HTMLElement>) {}
+
+  ngOnInit() {
+    const preset = calcPresetRange('last90', this.today);
+    this.appliedValue.set(preset);
+    this.valueChange.emit(preset);
+  }
+
+  ngOnChanges() {
+    this.appliedValue.set(this.value);
+  }
+
+  private detectPreset(range: DateRange): QuickKey | null {
+    const s = range.start ? normalizeDate(range.start) : null;
+    const e = range.end ? normalizeDate(range.end) : null;
+    if (!s || !e) return null;
+
+    for (const p of PRESETS) {
+      const r = calcPresetRange(p.key, this.today);
+      if (r.start && r.end) {
+        if (
+          normalizeDate(r.start).getTime() === s.getTime() &&
+          normalizeDate(r.end).getTime() === e.getTime()
+        ) return p.key;
+      }
+    }
+    return null;
+  }
+
+  // ----- Presets menu behavior -----
+  toggleMenu() {
+    if (this.isOpen()) return;
+    this.isMenuOpen.set(!this.isMenuOpen());
+  }
+
+  private closeMenu() {
+    this.isMenuOpen.set(false);
+  }
+
+  applyPreset(key: QuickKey) {
+    const preset = calcPresetRange(key, this.today);
+    this.appliedValue.set(preset);
+    this.valueChange.emit(preset);
+    this.closeMenu();
+
+    // close any open calendar/draft
+    this.isOpen.set(false);
+    this.showError.set(false);
+    this.draft.set({ start: null, end: null });
+  }
+
+  onCustomMouseDown(ev: MouseEvent) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
+  /**
+   * Custom click rules:
+   * - If current applied range matches a preset => open calendar "fresh" (no preselected range),
+   *   months = previous/current.
+   * - If current applied range is ad-hoc (no preset match) => open calendar in edit mode
+   *   with the applied range prefilled.
+   */
+  openCustomFromMenu() {
+    this.closeMenu();
+    this.isEditingCustom.set(true);
+
+
+    const presetKey = this.activePresetKey();
+    const applied = this.appliedValue();
+
+    // RULE 1: Coming from a preset => do NOT prefill range, show default months.
+    if (presetKey) {
+      this.draft.set({ start: null, end: null });
+      this.activeField.set('start');
+      this.showError.set(false);
+
+      this.topMonth.set(startOfMonth(addMonths(this.today, -1)));
+      this.bottomMonth.set(startOfMonth(this.today));
+
+      this.isOpen.set(true);
+      return;
+    }
+
+    // RULE 2: Ad-hoc range => prefill for editing.
+    if (applied.start && applied.end) {
+      this.draft.set({
+        start: normalizeDate(applied.start),
+        end: normalizeDate(applied.end),
+      });
+
+      this.activeField.set('end'); // intuitive: allow adjusting end quickly, user can click start
+      this.showError.set(false);
+
+      // Show months around applied end (clamped to today)
+      const anchor = normalizeDate(applied.end);
+      const clamped = anchor.getTime() > this.today.getTime() ? this.today : anchor;
+      this.bottomMonth.set(startOfMonth(clamped));
+      this.topMonth.set(startOfMonth(addMonths(this.bottomMonth(), -1)));
+
+      this.isOpen.set(true);
+      return;
+    }
+
+    // Fallback: no applied range => treat like "fresh custom"
+    this.draft.set({ start: null, end: null });
+    this.activeField.set('start');
+    this.showError.set(false);
+    this.topMonth.set(startOfMonth(addMonths(this.today, -1)));
+    this.bottomMonth.set(startOfMonth(this.today));
+    this.isOpen.set(true);
+  }
+
+  setActive(which: 'start' | 'end') {
+    this.activeField.set(which);
+  }
+
+  apply() {
+    if (!this.canApply()) {
+      this.showError.set(true);
+      return;
+    }
+
+    const d = this.draft();
+    const applied = { start: d.start, end: d.end };
+
+    this.appliedValue.set(applied);
+    this.valueChange.emit(applied);
+
+    this.isOpen.set(false);
+
+    this.isEditingCustom.set(false);
+
+    this.showError.set(false);
+    this.draft.set({ start: null, end: null });
+  }
+
+  clearDraft() {
+    this.draft.set({ start: null, end: null });
+    this.showError.set(true);
+    this.activeField.set('start');
+
+    this.topMonth.set(startOfMonth(addMonths(this.today, -1)));
+    this.bottomMonth.set(startOfMonth(this.today));
+  }
+
+  private cancel() {
+    this.isOpen.set(false);
+    this.isEditingCustom.set(false);
+    this.showError.set(false);
+    this.draft.set({ start: null, end: null });
+  }
+
+  // ----- Calendar navigation (no future + dependent months) -----
+  private ensureDependentMonths(changed: 'top' | 'bottom') {
+    if (changed === 'top') this.bottomMonth.set(startOfMonth(addMonths(this.topMonth(), 1)));
+    else this.topMonth.set(startOfMonth(addMonths(this.bottomMonth(), -1)));
+  }
+
+  canGoNext(which: 'top' | 'bottom'): boolean {
+    const cur = which === 'top' ? this.topMonth() : this.bottomMonth();
+    const next = startOfMonth(addMonths(cur, 1));
+    const currentMonthStart = startOfMonth(this.today);
+
+    if (which === 'bottom') return next.getTime() <= currentMonthStart.getTime();
+
+    const nextBottom = startOfMonth(addMonths(next, 1));
+    return nextBottom.getTime() <= currentMonthStart.getTime();
+  }
+
+  prevMonth(which: 'top' | 'bottom') {
+    if (which === 'top') {
+      this.topMonth.set(startOfMonth(addMonths(this.topMonth(), -1)));
+      this.ensureDependentMonths('top');
+    } else {
+      this.bottomMonth.set(startOfMonth(addMonths(this.bottomMonth(), -1)));
+      this.ensureDependentMonths('bottom');
+    }
+  }
+
+  nextMonth(which: 'top' | 'bottom') {
+    if (!this.canGoNext(which)) return;
+    if (which === 'top') {
+      this.topMonth.set(startOfMonth(addMonths(this.topMonth(), 1)));
+      this.ensureDependentMonths('top');
+    } else {
+      this.bottomMonth.set(startOfMonth(addMonths(this.bottomMonth(), 1)));
+      this.ensureDependentMonths('bottom');
+    }
+  }
+
+  isFutureMonth(which: 'top' | 'bottom', monthIndex: number, year: number): boolean {
+    if (year > this.todayYear) return true;
+    if (year < this.todayYear) return false;
+
+    const maxMonth = which === 'bottom' ? this.todayMonth : Math.max(0, this.todayMonth - 1);
+    return monthIndex > maxMonth;
+  }
+
+  setMonthIndex(which: 'top' | 'bottom', monthIndex: number) {
+    const cur = which === 'top' ? this.topMonth() : this.bottomMonth();
+    const year = cur.getFullYear();
+    const mi = Number(monthIndex);
+
+    if (this.isFutureMonth(which, mi, year)) return;
+
+    const next = startOfMonth(new Date(year, mi, 1));
+    if (which === 'top') {
+      this.topMonth.set(next);
+      this.ensureDependentMonths('top');
+    } else {
+      this.bottomMonth.set(next);
+      this.ensureDependentMonths('bottom');
+    }
+  }
+
+  setYearValue(which: 'top' | 'bottom', year: number) {
+    const y = Number(year);
+    if (y > this.todayYear) return;
+
+    const cur = which === 'top' ? this.topMonth() : this.bottomMonth();
+    const m = cur.getMonth();
+
+    if (this.isFutureMonth(which, m, y)) return;
+
+    const next = startOfMonth(new Date(y, m, 1));
+    if (which === 'top') {
+      this.topMonth.set(next);
+      this.ensureDependentMonths('top');
+    } else {
+      this.bottomMonth.set(next);
+      this.ensureDependentMonths('bottom');
+    }
+  }
+
+  // ----- Picking dates (draft only) -----
+  isCellDisabled(d: Date): boolean {
+    return normalizeDate(d).getTime() > this.today.getTime();
+  }
+
+  pickDate(d: Date) {
+    if (this.isCellDisabled(d)) return;
+
+    const clicked = normalizeDate(d);
+    const cur = this.draft();
+    const start = cur.start ? normalizeDate(cur.start) : null;
+    const end = cur.end ? normalizeDate(cur.end) : null;
+
+    if (!start) {
+      this.draft.set({ start: clicked, end: null });
+      this.activeField.set('end');
+      this.showError.set(false);
+      return;
+    }
+
+    if (start && !end) {
+      const next =
+        clicked.getTime() < start.getTime()
+          ? { start: clicked, end: null }
+          : { start, end: clicked };
+      this.draft.set(next);
+      this.showError.set(false);
+      return;
+    }
+
+    if (start && end) {
+      if (this.activeField() === 'start') {
+        if (clicked.getTime() > end.getTime()) {
+          this.draft.set({ start, end: clicked });
+          this.activeField.set('end');
+        } else {
+          this.draft.set({ start: clicked, end });
+        }
+      } else {
+        if (clicked.getTime() < start.getTime()) {
+          this.draft.set({ start: clicked, end });
+          this.activeField.set('start');
+        } else {
+          this.draft.set({ start, end: clicked });
+        }
+      }
+      this.showError.set(false);
+    }
+  }
+
+  inRange(d: Date): boolean {
+    const s = this.draft().start ? normalizeDate(this.draft().start!) : null;
+    const e = this.draft().end ? normalizeDate(this.draft().end!) : null;
+    if (!s || !e) return false;
+    const n = normalizeDate(d).getTime();
+    return n >= s.getTime() && n <= e.getTime();
+  }
+
+  isStart(d: Date): boolean {
+    const s = this.draft().start;
+    return !!(s && isSameDay(normalizeDate(d), normalizeDate(s)));
+  }
+
+  isEnd(d: Date): boolean {
+    const e = this.draft().end;
+    return !!(e && isSameDay(normalizeDate(d), normalizeDate(e)));
+  }
+
+  label(d: Date): string {
+    return monthLabel(d);
+  }
+
+  // Outside click cancels editing (does not apply) and closes menu.
+  @HostListener('document:mousedown', ['$event'])
+  onDocMouseDown(ev: MouseEvent) {
+    const el = this.host.nativeElement;
+    if (ev.target instanceof Node && !el.contains(ev.target)) {
+      if (this.isMenuOpen()) this.isMenuOpen.set(false);
+      if (this.isOpen()) this.cancel();
+    }
+  }
+}
