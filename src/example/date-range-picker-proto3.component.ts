@@ -70,7 +70,6 @@ function formatMMDDYYYY(d: Date): string {
         <div class="fieldLabel">Date range</div>
 
         <div class="selectWrap" [class.invalid]="dateRangeInvalid()">
-          <!-- Trigger (shows preset label OR the applied custom range) -->
           <button
             type="button"
             class="selectTrigger"
@@ -81,7 +80,6 @@ function formatMMDDYYYY(d: Date): string {
             <span class="caret" aria-hidden="true">▾</span>
           </button>
 
-          <!-- Menu -->
           <div class="menu" *ngIf="isMenuOpen()">
             <button
               type="button"
@@ -109,7 +107,6 @@ function formatMMDDYYYY(d: Date): string {
         </div>
       </div>
 
-      <!-- Calendar panel (opens only for Custom) -->
       <div class="panel" *ngIf="isOpen()">
         <div class="panelTop">
           <div class="inputs">
@@ -152,7 +149,6 @@ function formatMMDDYYYY(d: Date): string {
         </div>
 
         <div class="calStack">
-          <!-- TOP CALENDAR -->
           <div class="cal">
             <div class="calHeader">
               <button class="iconBtn" type="button" (click)="prevMonth('top')" aria-label="Previous month">←</button>
@@ -210,7 +206,6 @@ function formatMMDDYYYY(d: Date): string {
             </div>
           </div>
 
-          <!-- BOTTOM CALENDAR -->
           <div class="cal">
             <div class="calHeader">
               <button class="iconBtn" type="button" (click)="prevMonth('bottom')" aria-label="Previous month">←</button>
@@ -365,38 +360,74 @@ function formatMMDDYYYY(d: Date): string {
     .fieldError { font-size:12px; color:#b91c1c; }
     .generalError { margin-top:6px; font-size:12px; color:#b91c1c; }
 
+    /* ✅ COMPACT PANEL (Laptop) */
     .panel{
       position:absolute; z-index:20; top:64px; left:0;
-      width:min(980px, 100%);
+      width:min(720px, 100%);
       border:1px solid #e5e7eb; border-radius:14px;
       background:#fff;
       overflow:hidden;
       box-shadow:0 18px 45px rgba(0,0,0,.12);
-      padding: 12px;
+      padding: 10px;
       display:flex;
       flex-direction:column;
-      gap: 12px;
+      gap: 10px;
     }
 
     .panelTop { display:flex; flex-direction:column; gap: 6px; }
-    .inputs { display:flex; gap:12px; }
+    .inputs { display:flex; gap:10px; flex-wrap: wrap;  }
+    .inputs > .field{
+        flex: 1 1 120px;      /* ✅ cada campo intenta ocupar media fila; min 260px */
+        min-width: 100px;     /* ✅ ajusta si quieres */
+      }
+    
+    /* Desktop / laptop: horizontal */
+    .calStack{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    
+    /* Tablet y abajo: vertical */
+    @media (max-width: 900px){
+      .calStack{
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Celular y abajo: sigue vertical (refuerzo) */
+    @media (max-width: 720px){
+      .calStack{
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .cal {
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:8px;
+    }
 
-    .calStack { display:flex; flex-direction:column; gap:14px; }
-    .cal { border:1px solid #e5e7eb; border-radius:12px; padding:10px; }
-
-    .calHeader { display:grid; grid-template-columns:36px 1fr 36px; align-items:center; gap:8px; }
-    .headerCenter { display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap; }
-    .select { height:32px; border:1px solid #d1d5db; border-radius:10px; padding:0 8px; background:#fff; }
-    .iconBtn { height:32px; width:32px; border:1px solid #d1d5db; border-radius:10px; background:#fff; cursor:pointer; }
+    .calHeader { display:grid; grid-template-columns:32px 1fr 32px; align-items:center; gap:6px; }
+    .headerCenter { display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:nowrap; }
+    .select { height:30px; border:1px solid #d1d5db; border-radius:10px; padding:0 8px; background:#fff; font-size:12px; }
+    .iconBtn { height:30px; width:30px; border:1px solid #d1d5db; border-radius:10px; background:#fff; cursor:pointer; }
     .iconBtn[disabled]{ opacity:.5; cursor:not-allowed; }
 
     .calMonthLabel { margin-top:8px; font-size:12px; color:#6b7280; }
 
-    .dow, .grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-top:8px; }
+    /* ✅ fixed columns so days don't stretch wide */
+    .dow, .grid {
+      display:grid;
+      grid-template-columns:repeat(7, 38px);
+      justify-content:center;
+      gap:3px;
+      margin-top:6px;
+    }
     .dowCell { font-size:11px; color:#6b7280; text-align:center; }
 
     .cell{
-      height:32px; border-radius:10px;
+      height:26px; border-radius:9px;
       border:1px solid transparent;
       background:#f9fafb;
       cursor:pointer;
@@ -429,23 +460,36 @@ function formatMMDDYYYY(d: Date): string {
       cursor:not-allowed;
     }
 
-    @media (max-width:720px){
-      .panel{
-        position:fixed;
-        inset:0;
-        width:100vw;
-        height:100vh;
-        max-height:100vh;
-        border-radius:0;
-        overflow:auto;
-      }
-      .inputs{ gap:8px; }
-      input, .selectTrigger { height:32px; font-size:12px; padding:0 8px; }
-      .cell{ height:24px; border-radius:8px; }
-      .iconBtn{ width:28px; height:28px; border-radius:9px; }
-      .select{ height:28px; font-size:12px; border-radius:9px; }
-      .selectWrap{ max-width:100%; }
+    /* If screen is narrower, stack calendars vertically */
+    @media (max-width:820px){
+        .calStack{ grid-template-columns: 1fr; }
+        .dow, .grid {
+            display:grid;
+            grid-template-columns:repeat(7, 38px);
+            justify-content:center;
+            gap:3px;
+            margin-top:6px;
+          }
     }
+
+    @media (max-width:720px){
+        .panel{
+          position:absolute;         /* ✅ ya no fixed */
+          top: calc(100% + 8px);
+          left: 0;
+          width: 100%;
+          max-width: 100%;
+          border-radius:14px;
+          overflow: visible;         /* o hidden si lo prefieres */
+          padding: 10px;
+        }
+      
+        .selectWrap{ max-width:100%; }
+      
+        /* inputs se apilan si hace falta */
+       /* .inputs{ flex-direction: column; gap:8px; } */
+      }
+      
   `],
 })
 export class DateRangePickerProto3Component {
@@ -458,49 +502,40 @@ export class DateRangePickerProto3Component {
   todayYear = this.today.getFullYear();
   private todayMonth = this.today.getMonth();
 
-  // Applied value (what is currently "active" in the report filter)
   appliedValue = signal<DateRange>({ start: null, end: null });
 
-  // Presets menu (independent from the calendar panel)
   isMenuOpen = signal(false);
 
-  // Which preset matches the *applied* range (null => ad-hoc/custom range)
   activePresetKey = computed<QuickKey | null>(() => {
     const v = this.appliedValue();
     if (!v.start || !v.end) return null;
     return this.detectPreset(v);
   });
 
-  // What the trigger shows
   triggerLabel = computed(() => {
-    // ⬅️ NUEVO: mientras se edita Custom, el trigger dice "Custom"
     if (this.isEditingCustom()) return 'Custom';
-  
+
     const v = this.appliedValue();
     const presetKey = this.activePresetKey();
-  
+
     if (presetKey) {
       return PRESETS.find(p => p.key === presetKey)?.label ?? 'Date range';
     }
-  
+
     if (v.start && v.end) {
       return `${formatMMDDYYYY(v.start)} - ${formatMMDDYYYY(v.end)}`;
     }
-  
+
     return 'Date range';
   });
-  
 
-  // Panel + draft (only used while editing custom)
   isOpen = signal(false);
   showError = signal(false);
   activeField = signal<'start' | 'end'>('start');
   draft = signal<DateRange>({ start: null, end: null });
 
-  // UI-only flag: true while user is editing Custom (calendar open via Custom)
-isEditingCustom = signal(false);
+  isEditingCustom = signal(false);
 
-  // Dependent months: default view (TOP previous, BOTTOM current)
   topMonth = signal<Date>(startOfMonth(addMonths(this.today, -1)));
   bottomMonth = signal<Date>(startOfMonth(this.today));
 
@@ -566,7 +601,6 @@ isEditingCustom = signal(false);
     return null;
   }
 
-  // ----- Presets menu behavior -----
   toggleMenu() {
     if (this.isOpen()) return;
     this.isMenuOpen.set(!this.isMenuOpen());
@@ -582,7 +616,6 @@ isEditingCustom = signal(false);
     this.valueChange.emit(preset);
     this.closeMenu();
 
-    // close any open calendar/draft
     this.isOpen.set(false);
     this.showError.set(false);
     this.draft.set({ start: null, end: null });
@@ -593,22 +626,13 @@ isEditingCustom = signal(false);
     ev.stopPropagation();
   }
 
-  /**
-   * Custom click rules:
-   * - If current applied range matches a preset => open calendar "fresh" (no preselected range),
-   *   months = previous/current.
-   * - If current applied range is ad-hoc (no preset match) => open calendar in edit mode
-   *   with the applied range prefilled.
-   */
   openCustomFromMenu() {
     this.closeMenu();
     this.isEditingCustom.set(true);
 
-
     const presetKey = this.activePresetKey();
     const applied = this.appliedValue();
 
-    // RULE 1: Coming from a preset => do NOT prefill range, show default months.
     if (presetKey) {
       this.draft.set({ start: null, end: null });
       this.activeField.set('start');
@@ -621,17 +645,15 @@ isEditingCustom = signal(false);
       return;
     }
 
-    // RULE 2: Ad-hoc range => prefill for editing.
     if (applied.start && applied.end) {
       this.draft.set({
         start: normalizeDate(applied.start),
         end: normalizeDate(applied.end),
       });
 
-      this.activeField.set('end'); // intuitive: allow adjusting end quickly, user can click start
+      this.activeField.set('end');
       this.showError.set(false);
 
-      // Show months around applied end (clamped to today)
       const anchor = normalizeDate(applied.end);
       const clamped = anchor.getTime() > this.today.getTime() ? this.today : anchor;
       this.bottomMonth.set(startOfMonth(clamped));
@@ -641,7 +663,6 @@ isEditingCustom = signal(false);
       return;
     }
 
-    // Fallback: no applied range => treat like "fresh custom"
     this.draft.set({ start: null, end: null });
     this.activeField.set('start');
     this.showError.set(false);
@@ -667,7 +688,6 @@ isEditingCustom = signal(false);
     this.valueChange.emit(applied);
 
     this.isOpen.set(false);
-
     this.isEditingCustom.set(false);
 
     this.showError.set(false);
@@ -690,7 +710,6 @@ isEditingCustom = signal(false);
     this.draft.set({ start: null, end: null });
   }
 
-  // ----- Calendar navigation (no future + dependent months) -----
   private ensureDependentMonths(changed: 'top' | 'bottom') {
     if (changed === 'top') this.bottomMonth.set(startOfMonth(addMonths(this.topMonth(), 1)));
     else this.topMonth.set(startOfMonth(addMonths(this.bottomMonth(), -1)));
@@ -772,7 +791,6 @@ isEditingCustom = signal(false);
     }
   }
 
-  // ----- Picking dates (draft only) -----
   isCellDisabled(d: Date): boolean {
     return normalizeDate(d).getTime() > this.today.getTime();
   }
@@ -844,7 +862,6 @@ isEditingCustom = signal(false);
     return monthLabel(d);
   }
 
-  // Outside click cancels editing (does not apply) and closes menu.
   @HostListener('document:mousedown', ['$event'])
   onDocMouseDown(ev: MouseEvent) {
     const el = this.host.nativeElement;
